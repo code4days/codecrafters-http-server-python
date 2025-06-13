@@ -20,9 +20,14 @@ def main():
 
     rl = RequestLine(*request.split("\r\n")[0].split())
     if rl.target == "/":
-        conn.send(b"HTTP/1.1 200 OK\r\n\r\n")
+        response = "HTTP/1.1 200 OK\r\n\r\n"
+    elif rl.target.startswith("/echo/"):
+        response_body = rl.target.split("/echo/")[-1]
+        response = f"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(response_body)}\r\n\r\n{response_body}"
     else:
-        conn.send(b"HTTP/1.1 404 Not Found\r\n\r\n")
+        response = "HTTP/1.1 404 Not Found\r\n\r\n"
+    conn.sendall(response.encode())
+    conn.close()
 
 
 if __name__ == "__main__":
