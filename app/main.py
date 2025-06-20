@@ -25,9 +25,11 @@ def construct_response(
 ) -> str:
     response = f"{status_message}\r\n"
     if "Accept-Encoding" in http_request.headers:
-        compression_type = http_request.headers["Accept-Encoding"]
-        if compression_type in SUPPORTED_COMPRESSION_TYPES:
-            response += f"Content-Encoding: {compression_type}\r\n"
+        for compression_type in http_request.headers["Accept-Encoding"].split(","):
+            compression_type = compression_type.strip()
+            if compression_type in SUPPORTED_COMPRESSION_TYPES:
+                response += f"Content-Encoding: {compression_type}\r\n"
+                break
     response += f"Content-Type: {content_type}\r\n"
     response += f"Content-Length: {len(body)}\r\n\r\n"
     response += body
