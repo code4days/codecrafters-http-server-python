@@ -17,10 +17,17 @@ class HttpRequest:
 STATUS_OK = "HTTP/1.1 200 OK"
 STATUS_NOT_FOUND = "HTTP/1.1 404 Not Found"
 STATUS_CREATED = "HTTP/1.1 201 Created"
+SUPPORTED_COMPRESSION_TYPES = ["gzip"]
 
 
-def construct_response(status_message: str, content_type: str, body: str) -> str:
+def construct_response(
+    http_request: HttpRequest, status_message: str, content_type: str, body: str
+) -> str:
     response = f"{status_message}\r\n"
+    if "Accept-Encoding" in http_request.headers:
+        compression_type = http_request.headers["Accept-Encoding"]
+        if compression_type in SUPPORTED_COMPRESSION_TYPES:
+            response += f"Content-Encoding: {compression_type}\r\n"
     response += f"Content-Type: {content_type}\r\n"
     response += f"Content-Length: {len(body)}\r\n\r\n"
     response += body
@@ -50,11 +57,16 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
 
         elif http_request.target.startswith("/echo/"):
             response_body = http_request.target.split("/echo/")[-1]
-            response = construct_response(STATUS_OK, "text/plain", response_body)
+            response = construct_response(
+                http_request, STATUS_OK, "text/plain", response_body
+            )
 
         elif http_request.target.startswith("/user-agent"):
             response = construct_response(
-                STATUS_OK, "text/plain", http_request.headers["User-Agent"]
+                http_request,
+                STATUS_OK,
+                "text/plain",
+                http_request.headers["User-Agent"],
             )
 
         elif http_request.target.startswith("/files"):
@@ -69,7 +81,10 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
                     response = f"{STATUS_NOT_FOUND}\r\n\r\n"
                 else:
                     response = construct_response(
-                        STATUS_OK, "application/octet-stream", file_contents
+                        http_request,
+                        STATUS_OK,
+                        "application/octet-stream",
+                        file_contents,
                     )
 
             if http_request.method == "POST":
