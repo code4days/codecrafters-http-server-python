@@ -22,9 +22,17 @@ SUPPORTED_COMPRESSION_TYPES = ["gzip"]
 
 
 def construct_response(
-    http_request: HttpRequest, status_message: str, content_type: str, body: str
+    status_message: str,
+    http_request: HttpRequest | None = None,
+    content_type: str | None = None,
+    body: str | None = None,
 ) -> bytes:
     response = f"{status_message}\r\n"
+
+    if not http_request:
+        response += "\r\n"
+        return response.encode()
+
     compress_body = False
 
     if "Accept-Encoding" in http_request.headers:
@@ -35,13 +43,14 @@ def construct_response(
                 compress_body = True
                 break
     response += f"Content-Type: {content_type}\r\n"
+    if compress_body:
+        body = gzip.compress(body.encode())
+    else:
+        body = body.encode()
+
     response += f"Content-Length: {len(body)}\r\n\r\n"
     response = response.encode()
-    if compress_body:
-        print("compressing with gzip")
-        response += gzip.compress(body.encode())
-    else:
-        response += body.encode()
+    response += body
 
     return response
 
@@ -65,18 +74,18 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
         http_request = parse_request(request)
 
         if http_request.target == "/":
-            response = f"{STATUS_OK}\r\n\r\n"
+            response = construct_response(STATUS_OK)
 
         elif http_request.target.startswith("/echo/"):
             response_body = http_request.target.split("/echo/")[-1]
             response = construct_response(
-                http_request, STATUS_OK, "text/plain", response_body
+                STATUS_OK, http_request, "text/plain", response_body
             )
 
         elif http_request.target.startswith("/user-agent"):
             response = construct_response(
-                http_request,
                 STATUS_OK,
+                http_request,
                 "text/plain",
                 http_request.headers["User-Agent"],
             )
@@ -90,11 +99,11 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
                     with open(file_path, "r") as f:
                         file_contents = f.read()
                 except FileNotFoundError:
-                    response = f"{STATUS_NOT_FOUND}\r\n\r\n"
+                    response = construct_response(STATUS_NOT_FOUND)
                 else:
                     response = construct_response(
-                        http_request,
                         STATUS_OK,
+                        http_request,
                         "application/octet-stream",
                         file_contents,
                     )
@@ -103,9 +112,9 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
                 request_body = request.split("\r\n")[-1]
                 with open(file_path, "w") as f:
                     f.write(request_body)
-                response = f"{STATUS_CREATED}\r\n\r\n"
+                response = construct_response(STATUS_CREATED)
         else:
-            response = f"{STATUS_NOT_FOUND}\r\n\r\n"
+            response = construct_response(STATUS_NOT_FOUND)
 
         client_socket.sendall(response)
 
