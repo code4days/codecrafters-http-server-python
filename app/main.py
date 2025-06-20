@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import threading
 import sys
 from pathlib import Path
+import gzip
 
 
 @dataclass
@@ -22,17 +23,26 @@ SUPPORTED_COMPRESSION_TYPES = ["gzip"]
 
 def construct_response(
     http_request: HttpRequest, status_message: str, content_type: str, body: str
-) -> str:
+) -> bytes:
     response = f"{status_message}\r\n"
+    compress_body = False
+
     if "Accept-Encoding" in http_request.headers:
         for compression_type in http_request.headers["Accept-Encoding"].split(","):
             compression_type = compression_type.strip()
             if compression_type in SUPPORTED_COMPRESSION_TYPES:
                 response += f"Content-Encoding: {compression_type}\r\n"
+                compress_body = True
                 break
     response += f"Content-Type: {content_type}\r\n"
     response += f"Content-Length: {len(body)}\r\n\r\n"
-    response += body
+    response = response.encode()
+    if compress_body:
+        print("compressing with gzip")
+        response += gzip.compress(body.encode())
+    else:
+        response += body.encode()
+
     return response
 
 
@@ -97,7 +107,7 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
         else:
             response = f"{STATUS_NOT_FOUND}\r\n\r\n"
 
-        client_socket.sendall(response.encode())
+        client_socket.sendall(response)
 
 
 def main():
