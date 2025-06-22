@@ -90,7 +90,7 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
             http_request = parse_request(request)
 
             if http_request.target == "/":
-                response = construct_response(STATUS_OK)
+                response = construct_response(STATUS_OK, http_request)
 
             elif http_request.target.startswith("/echo/"):
                 response_body = http_request.target.split("/echo/")[-1]
@@ -115,7 +115,7 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
                         with open(file_path, "r") as f:
                             file_contents = f.read()
                     except FileNotFoundError:
-                        response = construct_response(STATUS_NOT_FOUND)
+                        response = construct_response(STATUS_NOT_FOUND, http_request)
                     else:
                         response = construct_response(
                             STATUS_OK,
@@ -128,9 +128,9 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
                     request_body = request.split("\r\n")[-1]
                     with open(file_path, "w") as f:
                         f.write(request_body)
-                    response = construct_response(STATUS_CREATED)
+                    response = construct_response(STATUS_CREATED, http_request)
             else:
-                response = construct_response(STATUS_NOT_FOUND)
+                response = construct_response(STATUS_NOT_FOUND, http_request)
 
             client_socket.sendall(response)
 
