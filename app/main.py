@@ -70,53 +70,63 @@ def parse_request(request: str) -> HttpRequest:
 
 def handle_request(client_socket: socket, storage_path: str) -> None:
     with client_socket:
-        request = client_socket.recv(1024).decode()
-        http_request = parse_request(request)
+        while True:
+            request = client_socket.recv(1024).decode()
+            if not request:
+                break
 
-        if http_request.target == "/":
-            response = construct_response(STATUS_OK)
+            http_request = parse_request(request)
 
-        elif http_request.target.startswith("/echo/"):
-            response_body = http_request.target.split("/echo/")[-1]
-            response = construct_response(
-                STATUS_OK, http_request, "text/plain", response_body
-            )
+            if http_request.target == "/":
+                response = construct_response(STATUS_OK)
 
-        elif http_request.target.startswith("/user-agent"):
-            response = construct_response(
-                STATUS_OK,
-                http_request,
-                "text/plain",
-                http_request.headers["User-Agent"],
-            )
+            elif http_request.target.startswith("/echo/"):
+                response_body = http_request.target.split("/echo/")[-1]
+                response = construct_response(
+                    STATUS_OK, http_request, "text/plain", response_body
+                )
 
-        elif http_request.target.startswith("/files"):
-            filename = http_request.target.split("/files/")[-1]
-            file_path = Path(storage_path).joinpath(filename)
+            elif http_request.target.startswith("/user-agent"):
+                response = construct_response(
+                    STATUS_OK,
+                    http_request,
+                    "text/plain",
+                    http_request.headers["User-Agent"],
+                )
 
-            if http_request.method == "GET":
-                try:
-                    with open(file_path, "r") as f:
-                        file_contents = f.read()
-                except FileNotFoundError:
-                    response = construct_response(STATUS_NOT_FOUND)
-                else:
-                    response = construct_response(
-                        STATUS_OK,
-                        http_request,
-                        "application/octet-stream",
-                        file_contents,
-                    )
+            elif http_request.target.startswith("/files"):
+                filename = http_request.target.split("/files/")[-1]
+                file_path = Path(storage_path).joinpath(filename)
 
-            if http_request.method == "POST":
-                request_body = request.split("\r\n")[-1]
-                with open(file_path, "w") as f:
-                    f.write(request_body)
-                response = construct_response(STATUS_CREATED)
-        else:
-            response = construct_response(STATUS_NOT_FOUND)
+                if http_request.method == "GET":
+                    try:
+                        with open(file_path, "r") as f:
+                            file_contents = f.read()
+                    except FileNotFoundError:
+                        response = construct_response(STATUS_NOT_FOUND)
+                    else:
+                        response = construct_response(
+                            STATUS_OK,
+                            http_request,
+                            "application/octet-stream",
+                            file_contents,
+                        )
 
-        client_socket.sendall(response)
+                if http_request.method == "POST":
+                    request_body = request.split("\r\n")[-1]
+                    with open(file_path, "w") as f:
+                        f.write(request_body)
+                    response = construct_response(STATUS_CREATED)
+            else:
+                response = construct_response(STATUS_NOT_FOUND)
+
+            client_socket.sendall(response)
+
+            if (
+                "Connection" in http_request.headers
+                and http_request.headers["Connection"] == "close"
+            ):
+                break
 
 
 def main():
