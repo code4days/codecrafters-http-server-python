@@ -21,6 +21,13 @@ STATUS_CREATED = "HTTP/1.1 201 Created"
 SUPPORTED_COMPRESSION_TYPES = ["gzip"]
 
 
+def connection_close(http_request: HttpRequest) -> bool:
+    return (
+        "Connection" in http_request.headers
+        and http_request.headers["Connection"] == "close"
+    )
+
+
 def construct_response(
     status_message: str,
     http_request: HttpRequest | None = None,
@@ -29,7 +36,9 @@ def construct_response(
 ) -> bytes:
     response = f"{status_message}\r\n"
 
-    if not http_request:
+    if not content_type:
+        if connection_close(http_request):
+            response += "Connection: close\r\n"
         response += "\r\n"
         return response.encode()
 
@@ -48,7 +57,10 @@ def construct_response(
     else:
         body = body.encode()
 
+    if connection_close(http_request):
+        response += "Connection: close\r\n"
     response += f"Content-Length: {len(body)}\r\n\r\n"
+
     response = response.encode()
     response += body
 
@@ -122,10 +134,7 @@ def handle_request(client_socket: socket, storage_path: str) -> None:
 
             client_socket.sendall(response)
 
-            if (
-                "Connection" in http_request.headers
-                and http_request.headers["Connection"] == "close"
-            ):
+            if connection_close(http_request):
                 break
 
 
